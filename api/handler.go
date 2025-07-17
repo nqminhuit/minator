@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -10,13 +11,44 @@ import (
 	"time"
 )
 
+const statusFile = "data/status.json"
+
 func formatMillis(timestamp int64) string {
 	t := time.UnixMilli(timestamp)
 	return t.Format("2006-01-02 15:04:05")
 }
 
+func upsertServiceStatus(filePath string, newStatus ServiceStatus) error {
+	var statuses []ServiceStatus
+
+	data, err := os.ReadFile(filePath)
+	if err == nil {
+		if err := json.Unmarshal(data, &statuses); err != nil {
+			return fmt.Errorf("Failed to parse statuses from file: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	found := false
+	for i, s := range statuses {
+		if s.Name == newStatus.Name {
+			statuses[i] = newStatus
+			found = true
+			break
+		}
+	}
+	if !found {
+		statuses = append(statuses, newStatus)
+	}
+	newData, err := json.Marshal(statuses)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, newData, 0644)
+}
+
 func StatusPageHandler(w http.ResponseWriter, r *http.Request) {
-	f, err := os.Open("data/status.json")
+	f, err := os.Open(statusFile)
 	if err != nil {
 		http.Error(w, "Unable to read status file", 500)
 		return
@@ -42,6 +74,12 @@ func StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 // we will store health status like which backup is done, which is in progress,
 // which fails, ... Then this function will update response on a json file
 // so that StatusPageHandler will use this json to render the html
-func BackupStatusHandler(w http.ResponseWriter, r *http.Request) {
-
+func ServiceStatusHandler(w http.ResponseWriter, r *http.Request) {
+	var payload ServiceRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		slog.Error("Could not decode ServiceRequest", "err", err)
+		return
+	}
+	upsertServiceStatus(statusFile, payload.toServiceStatus(time.Now().UnixMilli()))
 }

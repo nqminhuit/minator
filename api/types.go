@@ -1,8 +1,8 @@
 package api
 
 import (
-	"encoding/json"
-	"log/slog"
+	"fmt"
+	"strings"
 )
 
 type ServiceStatus struct {
@@ -19,15 +19,14 @@ type ServiceRequest struct {
 }
 
 func (s *ServiceRequest) toServiceStatus(lastCheck int64) ServiceStatus {
-	msg, err := json.Marshal(s.Details)
-	if err != nil {
-		slog.Error("Could not convert ServiceRequest#Details to json", "err", err)
-		return ServiceStatus{}
+	msg := make([]string, 0, len(s.Details))
+	for key, val := range s.Details {
+		msg = append(msg, fmt.Sprintf("%s: %s", key, val))
 	}
 	return ServiceStatus{
 		Name:      s.Name,
 		Status:    s.Status,
 		LastCheck: lastCheck,
-		Message:   string(msg),
+		Message:   strings.Join(msg, ", "),
 	}
 }
