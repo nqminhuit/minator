@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Service Status</title>
+    <style>
+      body {
+          font-family: sans-serif;
+          margin: 2em;
+          background: #f5f5f5;
+      }
+      h1 {
+          text-align: center;
+          color: #333;
+      }
+      table {
+          width: 100%;
+          border-collapse: collapse;
+          background: white;
+          box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      }
+      th, td {
+          padding: 12px;
+          text-align: left;
+          border-bottom: 1px solid #ddd;
+      }
+      .healthy {
+          color: green;
+          font-weight: bold;
+      }
+      .down {
+          color: red;
+          font-weight: bold;
+      }
+      .degraded {
+          color: orange;
+          font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Service Status</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Status</th>
+          <th>Last Checked</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .}}
+        <tr>
+          <td>{{.Name}}</td>
+          <td class="{{.Status}}">{{.Status}}</td>
+          <td>{{.LastCheck}}</td>
+          <td>{{.Message}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </body>
+</html>

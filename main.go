@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -10,25 +10,24 @@ import (
 )
 
 func main() {
-	log.Println("[healthmon] starting...")
-
 	// Start periodic health checks
 	go monitor.StartMonitorLoop()
 
 	// Register HTTP routes
-	http.HandleFunc("/status", api.StatusPageHandler)
-	http.HandleFunc("/api/status", api.JSONStatusHandler)
-	http.HandleFunc("/health/backup", api.BackupPingHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /status", api.StatusPageHandler)
+	mux.HandleFunc("POST /api/backup/status", api.BackupStatusHandler)
 
-	// Start server
 	port := getPort()
-	log.Printf("[healthmon] listening on http://localhost:%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	slog.Info("Server is starting", "port", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		panic(err)
+	}
 }
 
 func getPort() string {
 	if port := os.Getenv("PORT"); port != "" {
 		return port
 	}
-	return "8080"
+	return "18080"
 }
