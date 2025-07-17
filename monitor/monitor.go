@@ -1,14 +1,29 @@
 package monitor
 
 import (
+	"fmt"
 	"log/slog"
+	"minator/sys"
 	"time"
 )
 
 func StartMonitorLoop() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
-		slog.Info("monitoring...")
+		diskPercent, err := sys.DiskPercentUsage()
+		var sysPercent string
+		if err != nil {
+			slog.Error("Could not collect disk percent", "Reason", err)
+		} else {
+			sysPercent = fmt.Sprintf("Disk used: %.2f%%", diskPercent)
+		}
+		ramPercent, err := sys.RamPercentUsage()
+		if err != nil {
+			slog.Error("Could not collect RAM percent", "Reason", err)
+		} else {
+			sysPercent += fmt.Sprintf(" RAM used: %.2f%%", ramPercent)
+		}
+		slog.Info("System usage", "Percentage", sysPercent)
 		// TODO: we will monitor:
 		// 1. nextcloud
 		// 2. postgresql
