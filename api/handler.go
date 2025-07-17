@@ -2,16 +2,17 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"os"
+	"time"
 )
 
-type ServiceStatus struct {
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	LastCheck string `json:"last_check"`
-	Message   string `json:"message,omitempty"`
+func formatMillis(timestamp int64) string {
+	t := time.UnixMilli(timestamp)
+	return t.Format("2006-01-02 15:04:05")
 }
 
 func StatusPageHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +29,10 @@ func StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl := template.Must(template.ParseFiles("templates/status.html"))
+	tmpl := template.Must(template.New("status.html").
+		Funcs(template.FuncMap{"formatMillis": formatMillis}).
+		ParseFiles("templates/status.html"))
+
 	if err := tmpl.Execute(w, statuses); err != nil {
 		http.Error(w, "Render error", 500)
 	}

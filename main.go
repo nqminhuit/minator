@@ -16,7 +16,7 @@ func main() {
 	// Register HTTP routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", api.StatusPageHandler)
-	mux.HandleFunc("POST /api/backup/status", api.BackupStatusHandler)
+	mux.HandleFunc("POST /api/service/status", api.ServiceStatusHandler)
 
 	port := getPort()
 	slog.Info("Server is starting", "port", port)

@@ -54,7 +54,7 @@
         <tr>
           <td>{{.Name}}</td>
           <td class="{{.Status}}">{{.Status}}</td>
-          <td>{{.LastCheck}}</td>
+          <td>{{.LastCheck | formatMillis}}</td>
           <td>{{.Message}}</td>
         </tr>
         {{end}}

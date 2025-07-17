@@ -2,37 +2,37 @@
   {
     "name": "nextcloud",
     "status": "healthy",
-    "last_check": "2025-07-17T14:30:00+07:00",
+    "lastCheck": 1721207400000,
     "message": ""
   },
   {
     "name": "postgresql",
     "status": "healthy",
-    "last_check": "2025-07-17T14:30:00+07:00",
+    "lastCheck": 1721107400000,
     "message": ""
   },
   {
     "name": "forgejo",
     "status": "down",
-    "last_check": "2025-07-17T14:30:00+07:00",
+    "lastCheck": 1721207400000,
     "message": "container not running"
   },
   {
     "name": "wireguard",
     "status": "degraded",
-    "last_check": "2025-07-17T14:30:00+07:00",
+    "lastCheck": 1721217400000,
     "message": "interface up but no peers"
   },
   {
     "name": "backup",
     "status": "healthy",
-    "last_check": "2025-07-17T14:30:00+07:00",
+    "lastCheck": 1721208400000,
     "message": "last run was 2 hours ago"
   },
   {
     "name": "disk",
     "status": "degraded",
-    "last_check": "2025-07-17T14:30:00+07:00",
+    "lastCheck": 1721209400000,
     "message": "disk usage at 85%"
   }
 ]
