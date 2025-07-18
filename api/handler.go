@@ -31,6 +31,26 @@ func ServiceStatusHandler(w http.ResponseWriter, r *http.Request) {
 	data.UpsertServiceStatus(payload.ToServiceStatus(time.Now().UnixMilli()))
 }
 
+func sendStatuses(flusher http.Flusher, w http.ResponseWriter) {
+	// Read status from JSON file
+	content, err := data.ReadServiceStatusContent()
+	if len(content) > 10*1024*1024 {
+		fmt.Fprintf(w, "event: error\ndata: status file too large\n\n")
+		flusher.Flush()
+		return
+	}
+	if err != nil {
+		slog.Error("Failed to read service status file", "err", err)
+		fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
+		flusher.Flush()
+		return
+	}
+	// Write event to stream
+	fmt.Fprintf(w, "event: update\ndata: %s\n\n", content)
+	flusher.Flush()
+
+}
+
 func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Info("SSE client connected", "remote", r.RemoteAddr)
 	defer slog.Info("SSE client disconnected", "remote", r.RemoteAddr)
@@ -51,6 +71,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sendStatuses(flusher, w)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -59,22 +80,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return // client disconnected
 		case <-ticker.C:
-			// Read status from JSON file
-			content, err := data.ReadServiceStatusContent()
-			if len(content) > 10*1024*1024 {
-				fmt.Fprintf(w, "event: error\ndata: status file too large\n\n")
-				flusher.Flush()
-				continue
-			}
-			if err != nil {
-				slog.Error("Failed to read service status file", "err", err)
-				fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
-				flusher.Flush()
-				continue
-			}
-			// Write event to stream
-			fmt.Fprintf(w, "event: update\ndata: %s\n\n", content)
-			flusher.Flush()
+			sendStatuses(flusher, w)
 		}
 	}
 }
