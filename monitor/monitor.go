@@ -23,6 +23,12 @@ func StartMonitorLoop() {
 		} else {
 			sysPercent += fmt.Sprintf(" RAM used: %.2f%%", ramPercent)
 		}
+		cpuPercent, err := sys.CpuPercentUsage()
+		if err != nil {
+			slog.Error("Could not collect CPU percent", "Reason", err)
+		} else {
+			sysPercent += fmt.Sprintf(" CPU used: %.2f%%", cpuPercent)
+		}
 		slog.Info("System usage", "Percentage", sysPercent)
 		// TODO: we will monitor:
 		// 1. nextcloud
