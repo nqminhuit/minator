@@ -9,18 +9,6 @@ import (
 
 const statusFile = "data/status.json"
 
-func GetServiceStatus() ([]ServiceStatus, error) {
-	f, err := os.Open(statusFile)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to read status file")
-	}
-	defer f.Close()
-	var statuses []ServiceStatus
-	if err := json.NewDecoder(f).Decode(&statuses); err != nil {
-		return nil, fmt.Errorf("Invalid status data")
-	}
-	return statuses, nil
-
 func ReadServiceStatusContent() ([]byte, error) {
 	return os.ReadFile(statusFile)
 }
