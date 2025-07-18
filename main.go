@@ -17,6 +17,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", api.StatusPageHandler)
 	mux.HandleFunc("POST /api/service/status", api.ServiceStatusHandler)
+	mux.HandleFunc("/events", api.EventsHandler)
 
 	port := getPort()
 	slog.Info("Server is starting", "port", port)

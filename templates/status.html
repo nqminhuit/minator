@@ -49,16 +49,63 @@
           <th>Message</th>
         </tr>
       </thead>
-      <tbody>
-        {{range .}}
-        <tr>
-          <td>{{.Name}}</td>
-          <td class="{{.Status}}">{{.Status}}</td>
-          <td>{{.LastCheck | formatMillis}}</td>
-          <td>{{.Message}}</td>
-        </tr>
-        {{end}}
+      <tbody id="status-body">
+        <tr><td colspan="4" style="text-align:center;">Waiting for updates...</td></tr>
       </tbody>
     </table>
+    <p id="last-updated" style="text-align: center; color: #777; font-size: 0.9em;"></p>
+
+    <script>
+      const tbody = document.getElementById("status-body");
+      let es;
+      function startSSE() {
+          if (es) {
+              es.close();
+          }
+          es = new EventSource("/events");
+          es.addEventListener("update", (event) => {
+              try {
+                  const data = JSON.parse(event.data);
+                  renderStatus(data);
+              } catch (e) {
+                  console.error("Failed to parse SSE data", e)
+              }
+          });
+          es.onerror = (err) => {
+              tbody.innerHTML = `
+              <tr>
+                <td colspan="4" style="color:red; text-align:center;">
+                  ❌ Lost connection to server. <br>
+                  Trying to reconnect automatically...<br>
+                  If this persists, refresh the page.
+                </td>
+              </tr>`;
+          };
+      }
+      window.addEventListener('DOMContentLoaded', () => {
+          startSSE();
+          setInterval(startSSE, 1000 * 60 * 10); // restart every 10 minutes
+      });
+
+      function formatTime(millis) {
+          const date = new Date(millis);
+          return date.toLocaleString();
+      }
+
+      function renderStatus(data) {
+          tbody.innerHTML = '';
+          Object.entries(data).sort(([_, a], [__, b]) => a.name.localeCompare(b.name)).forEach(([_, entry]) => {
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+            <td>${entry.name}</td>
+            <td class="${entry.status}">${entry.status}</td>
+            <td>${formatTime(entry.lastCheck)}</td>
+            <td>${entry.message || ''}</td>
+          `;
+              tbody.appendChild(tr);
+              document.getElementById("last-updated").textContent = "Last update: " + new Date().toLocaleString();
+          });
+      }
+      </script>
   </body>
 </html>

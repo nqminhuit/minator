@@ -20,6 +20,9 @@ func GetServiceStatus() ([]ServiceStatus, error) {
 		return nil, fmt.Errorf("Invalid status data")
 	}
 	return statuses, nil
+
+func ReadServiceStatusContent() ([]byte, error) {
+	return os.ReadFile(statusFile)
 }
 
 func UpsertServiceStatus(newStatus ServiceStatus) error {
