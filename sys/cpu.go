@@ -37,7 +37,7 @@ func readCPUTimes() (cpuTimes, error) {
 	return cpuTimes{}, nil
 }
 
-func CpuPercentUsage() (float64, error) {
+func CpuPercentUsage() (float32, error) {
 	t1, err := readCPUTimes()
 	if err != nil {
 		return 0, err
@@ -57,5 +57,5 @@ func CpuPercentUsage() (float64, error) {
 		return 0, nil
 	}
 
-	return (1.0 - idleTicks/totalTicks) * 100.0, nil
+	return float32(1.0-idleTicks/totalTicks) * 100.0, nil
 }

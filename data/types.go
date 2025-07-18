@@ -1,4 +1,4 @@
-package api
+package data
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ type ServiceRequest struct {
 	Details map[string]any `json:"details"`
 }
 
-func (s *ServiceRequest) toServiceStatus(lastCheck int64) ServiceStatus {
+func (s *ServiceRequest) ToServiceStatus(lastCheck int64) ServiceStatus {
 	msg := make([]string, 0, len(s.Details))
 	for key, val := range s.Details {
 		msg = append(msg, fmt.Sprintf("%s: %s", key, val))
