@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const statusFile = "data/status.json"
+const statusFile = "/tmp/status.json"
 
 func ReadServiceStatusContent() ([]byte, error) {
 	return os.ReadFile(statusFile)
