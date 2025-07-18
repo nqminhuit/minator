@@ -13,7 +13,6 @@ func StartMonitorLoop() {
 		data.UpsertServiceStatus(forgejoStatus())
 		// TODO: we will monitor:
 		// nextcloud
-		// woodpecker-ci
 		// privatebin
 		// wireguard
 	}
