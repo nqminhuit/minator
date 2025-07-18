@@ -10,9 +10,9 @@ func StartMonitorLoop() {
 	for range ticker.C {
 		data.UpsertServiceStatus(hardwareStatus())
 		data.UpsertServiceStatus(postgresStatus())
+		data.UpsertServiceStatus(forgejoStatus())
 		// TODO: we will monitor:
 		// nextcloud
-		// forgejo
 		// woodpecker-ci
 		// privatebin
 		// wireguard
