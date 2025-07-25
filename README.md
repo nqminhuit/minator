@@ -1,3 +1,9 @@
+# Minator
+
+**Minator** is a lightweight monitoring and alerting tool for containerized services and infrastructure, built in Go. It provides periodic health checks, dashboard visualization, and alerting for services like Forgejo, PostgreSQL, hardware usage, backups, and more.
+
+## Features
+
 | Feature                  | Mechanism                                                                 |
 | ------------------------ | ------------------------------------------------------------------------- |
 | Container service checks | Ping service via TCP/Unix socket, or check Podman container state via CLI |
@@ -9,15 +15,58 @@
 | Cron-like jobs           | `time.Ticker` in goroutines                                               |
 | Persistence              | JSON file (for backup history etc.)                                       |
 
+## Quickstart
 
-start forgejo with podman:
-
-``` shell
-podman run --replace -d --name forgejo -p 3000:3000 -p 2222:22 -v /opt/compose/forgejo:/data -v /etc/timezone:/etc/timezone:ro -v /etc/localtime:/etc/localtime:ro codeberg.org/forgejo/forgejo:12.0.0
-```
-
-health check:
+Start all base services (the ones that need monitored)
 
 ``` shell
-curl -f "http://localhost:3000/user/login"
+make infra
 ```
+
+## Running Minator
+
+You can run the monitoring server in development mode:
+
+```shell
+make
+```
+
+See available Makefile commands:
+
+```shell
+make help
+```
+
+## Usage
+
+- Access the web dashboard at `http://localhost:18080/status` (default port).
+- Service statuses are checked periodically (see `monitor/monitor.go`) and visualized in the dashboard.
+- Status is persisted in `/tmp/status.json`.
+- API to send health status to Minator:
+
+``` shell
+curl "localhost:18080/api/service/status" \
+    -H "content-type:application/json" \
+    -d '{
+        "name": "Backup",
+        "status": "inprogress",
+        "details": {
+            "previousBackup":"Forgejo",
+            "currentBackup":"PostgreSQL"
+        }
+    }'
+```
+
+## Configuration
+
+- Change port by setting the `PORT` environment variable.
+- Configure monitored services in the `monitor` package (add new checks as needed).
+
+## License
+
+This project does not yet specify a license.  
+Please add a license file appropriate for your use-case.
+
+## Contact
+
+Maintainer: [nqminhuit](https://github.com/nqminhuit)
