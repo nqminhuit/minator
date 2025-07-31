@@ -57,6 +57,12 @@ curl "localhost:18080/api/service/status" \
     }'
 ```
 
+- for siplicity, a target was introduced in Makefile, simply call:
+
+``` shell
+make sample-test
+```
+
 ## Configuration
 
 - Change port by setting the `PORT` environment variable.
