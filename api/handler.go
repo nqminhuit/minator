@@ -96,45 +96,115 @@ func EventsHandler(m *monitor.Monitor) func(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func GetHardwareMetrics(m *monitor.Monitor) func(w http.ResponseWriter, r *http.Request) {
+func StreamHardwareMetrics(m *monitor.Monitor) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		query := `
-		SELECT timestamp, cpu_percent, ram_percent, disk_percent
-		FROM hardware_metrics
-		WHERE timestamp >= NOW() - INTERVAL '24 hours'
-		ORDER BY timestamp`
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
 
-		rows, err := m.DB.Query(query)
-		if err != nil {
-			slog.Error("Failed to query hardware metrics", "error", err)
-			http.Error(w, "Failed to query hardware metrics", http.StatusInternalServerError)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 			return
 		}
-		defer rows.Close()
 
-		var metrics []data.HardwareMetrics
-		for rows.Next() {
-			var m data.HardwareMetrics
-			if err := rows.Scan(&m.Timestamp, &m.CPUPercent, &m.RAMPercent, &m.DiskPercent); err != nil {
-				slog.Error("Failed to scan hardware metrics", "error", err)
-				http.Error(w, "Failed to scan hardware metrics", http.StatusInternalServerError)
+		// Step 1: Send the latest 20 points first
+		lastTimestamp := sendInitialMetrics(m, w, flusher, 20)
+
+		// Step 2: Start ticker to fetch only new metrics
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				slog.Info("Client disconnected from hardware metrics SSE")
 				return
+
+			case <-ticker.C:
+				newTimestamp := sendNewMetrics(m, w, flusher, lastTimestamp)
+				if !newTimestamp.IsZero() {
+					lastTimestamp = newTimestamp
+				}
 			}
-			metrics = append(metrics, m)
-		}
-
-		if err := rows.Err(); err != nil {
-			slog.Error("Error iterating over rows", "error", err)
-			http.Error(w, "Failed to scan hardware metrics", http.StatusInternalServerError)
-			return
-		}
-
-		// Set Content-Type to application/json
-		w.Header().Set("Content-Type", "application/json")
-
-		if err := json.NewEncoder(w).Encode(metrics); err != nil {
-			slog.Error("Failed to encode hardware metrics", "error", err)
-			http.Error(w, fmt.Sprintf("Failed to encode hardware metrics: %v", err), http.StatusInternalServerError)
 		}
 	}
+}
+
+// sendInitialMetrics sends the latest N metrics sorted ASC
+func sendInitialMetrics(m *monitor.Monitor, w http.ResponseWriter, f http.Flusher, limit int) time.Time {
+	query := `
+		SELECT timestamp, cpu_percent, ram_percent, disk_percent
+		FROM hardware_metrics
+		ORDER BY timestamp ASC
+		LIMIT $1
+	`
+
+	rows, err := m.DB.Query(query, limit)
+	if err != nil {
+		slog.Error("Failed to query initial hardware metrics", "error", err)
+		http.Error(w, "Failed to query hardware metrics", http.StatusInternalServerError)
+		return time.Time{}
+	}
+	defer rows.Close()
+
+	var lastTimestamp time.Time
+	for rows.Next() {
+		var m data.HardwareMetrics
+		if err := rows.Scan(&m.Timestamp, &m.CPUPercent, &m.RAMPercent, &m.DiskPercent); err != nil {
+			slog.Error("Failed to scan hardware metrics", "error", err)
+			continue
+		}
+		lastTimestamp = m.Timestamp
+
+		if jsonData, err := json.Marshal(m); err == nil {
+			fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			f.Flush()
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		slog.Error("Error iterating initial rows", "error", err)
+	}
+
+	return lastTimestamp
+}
+
+// sendNewMetrics only fetches rows newer than lastTimestamp
+func sendNewMetrics(m *monitor.Monitor, w http.ResponseWriter, f http.Flusher, lastTimestamp time.Time) time.Time {
+	query := `
+		SELECT timestamp, cpu_percent, ram_percent, disk_percent
+		FROM hardware_metrics
+		WHERE timestamp > $1
+		ORDER BY timestamp ASC
+	`
+
+	rows, err := m.DB.Query(query, lastTimestamp)
+	if err != nil {
+		slog.Error("Failed to query new hardware metrics", "error", err)
+		return time.Time{}
+	}
+	defer rows.Close()
+
+	var newestTimestamp time.Time
+	for rows.Next() {
+		var m data.HardwareMetrics
+		if err := rows.Scan(&m.Timestamp, &m.CPUPercent, &m.RAMPercent, &m.DiskPercent); err != nil {
+			slog.Error("Failed to scan hardware metrics", "error", err)
+			continue
+		}
+
+		newestTimestamp = m.Timestamp
+
+		if jsonData, err := json.Marshal(m); err == nil {
+			fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			f.Flush()
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		slog.Error("Error iterating new rows", "error", err)
+	}
+
+	return newestTimestamp
 }
