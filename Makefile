@@ -9,12 +9,11 @@ BUILD_DIR := build
 
 all: run
 
-run: ## start server in dev mode
-	go run main.go
+compile: ## compile all go code
+	go build ./...
 
-infra: ## start infra services like forgejo, postgres,...
-	podman run --replace -d --name forgejo -p 3000:3000 -p 2222:22 -v /opt/compose/forgejo:/data -v /etc/timezone:/etc/timezone:ro -v /etc/localtime:/etc/localtime:ro codeberg.org/forgejo/forgejo:12.0.0
-	podman run --replace -d --name minator-postgres -e POSTGRES_PASSWORD=123456 -p 5432:5432 docker.io/postgres:latest
+run: ## start server in dev mode
+	POSTGRES_PASSWORD=securepassword MINATOR_DB_PASSWORD=securepassword go run main.go
 
 fmt: ## Format Go source files
 	go fmt ./...
