@@ -121,57 +121,81 @@
     </div>
 
     <script>
-      fetch('/api/hardware/metrics')
-        .then(resp => { return resp.json(); })
-        .then(data => {
-          const labels = data.map(row => row.timestamp);
-          const cpuData = data.map(row => row.cpu_percent);
-          const ramData = data.map(row => row.ram_percent);
-          const diskData = data.map(row => row.disk_percent);
+      const labels = [];
+      const cpuData = [];
+      const ramData = [];
+      const diskData = [];
 
-          const ctx = document.getElementById('metricsChart').getContext('2d');
-          new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [
-                {
-                  label: "CPU Usage (%)",
-                  data: cpuData,
-                  borderColor: "#ff4d4d",
-                  fill: false,
-                  tension: 0.3
-                },
-                {
-                  label: "RAM Usage (%)",
-                  data: ramData,
-                  borderColor: "#4da6ff",
-                  fill: false,
-                  tension: 0.3
-                },
-                {
-                  label: "Disk Usage (%)",
-                  data: diskData,
-                  borderColor: "#28a745",
-                  fill: false,
-                  tension: 0.3
-                }
-              ]
+      const ctx = document.getElementById('metricsChart').getContext('2d');
+      const metricsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "CPU Usage (%)",
+              data: cpuData,
+              borderColor: "#ff4d4d",
+              fill: false,
+              tension: 0.3
             },
-            options: {
-              responsive: true,
-              interaction: { mode: "index", intersect: false },
-              stacked: false,
-              plugins: {
-                legend: { position: "top" },
-                tooltip: { mode: "nearest" }
-              },
-              scales: {
-                y: { beginAtZero: true, max: 100 }
-              }
+            {
+              label: "RAM Usage (%)",
+              data: ramData,
+              borderColor: "#4da6ff",
+              fill: false,
+              tension: 0.3
+            },
+            {
+              label: "Disk Usage (%)",
+              data: diskData,
+              borderColor: "#28a745",
+              fill: false,
+              tension: 0.3
             }
-          });
-        })
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          stacked: false,
+          plugins: {
+            legend: { position: "top" },
+            tooltip: { mode: "nearest" }
+          },
+          scales: {
+            y: { beginAtZero: true, max: 100 }
+          }
+        }
+      });
+
+      // Connect to SSE endpoint
+      const evtSource = new EventSource("/api/hardware/metrics/stream");
+
+      evtSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        // Append new data point
+        labels.push(data.timestamp);
+        cpuData.push(data.cpu_percent);
+        ramData.push(data.ram_percent);
+        diskData.push(data.disk_percent);
+
+        // Keep only the last 20 points for performance
+        if (labels.length > 20) {
+          labels.shift();
+          cpuData.shift();
+          ramData.shift();
+          diskData.shift();
+        }
+
+        // Update chart
+        metricsChart.update();
+      };
+
+      evtSource.onerror = function (err) {
+        console.error("SSE error:", err);
+      };
     </script>
   </body>
 </html>
