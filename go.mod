@@ -2,10 +2,7 @@ module minator
 
 go 1.24.2
 
-require (
-	github.com/lib/pq v1.10.9
-	github.com/shirou/gopsutil/v4 v4.25.8
-)
+require github.com/shirou/gopsutil/v4 v4.25.8
 
 require (
 	github.com/ebitengine/purego v0.8.4 // indirect
