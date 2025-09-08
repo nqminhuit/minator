@@ -108,10 +108,7 @@ func StreamHardwareMetrics(m *monitor.Monitor) func(w http.ResponseWriter, r *ht
 			return
 		}
 
-		// Step 1: Send the latest 20 points first
-		lastTimestamp := sendInitialMetrics(m, w, flusher, 20)
-
-		// Step 2: Start ticker to fetch only new metrics
+		lastTimestamp := sendInitialMetrics(m, w, flusher, 50)
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
@@ -131,14 +128,17 @@ func StreamHardwareMetrics(m *monitor.Monitor) func(w http.ResponseWriter, r *ht
 	}
 }
 
-// sendInitialMetrics sends the latest N metrics sorted ASC
 func sendInitialMetrics(m *monitor.Monitor, w http.ResponseWriter, f http.Flusher, limit int) time.Time {
 	query := `
 		SELECT timestamp, cpu_percent, ram_percent, disk_percent
-		FROM hardware_metrics
-		ORDER BY timestamp ASC
-		LIMIT $1
-	`
+		FROM (
+			SELECT timestamp, cpu_percent, ram_percent, disk_percent
+			FROM hardware_metrics
+			WHERE timestamp >= NOW() - INTERVAL '24 hours'
+			ORDER BY timestamp DESC
+			LIMIT $1
+		) sub
+		ORDER BY timestamp ASC;`
 
 	rows, err := m.DB.Query(query, limit)
 	if err != nil {

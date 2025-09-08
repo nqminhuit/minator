@@ -164,7 +164,15 @@
             tooltip: { mode: "nearest" }
           },
           scales: {
-            y: { beginAtZero: true, max: 100 }
+            y: { beginAtZero: true, max: 100 },
+            x: {
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 20,
+                maxRotation: 45,
+                minRotation: 0
+              }
+            },
           }
         }
       });
@@ -181,8 +189,8 @@
         ramData.push(data.ram_percent);
         diskData.push(data.disk_percent);
 
-        // Keep only the last 20 points for performance
-        if (labels.length > 20) {
+        // Keep only the last 100 points for performance
+        if (labels.length > 100) {
           labels.shift();
           cpuData.shift();
           ramData.shift();
