@@ -87,11 +87,6 @@
           setInterval(startSSE, 1000 * 60 * 10); // restart every 10 minutes
       });
 
-      function formatTime(millis) {
-          const date = new Date(millis);
-          return date.toLocaleString();
-      }
-
       function renderStatus(data) {
           tbody.innerHTML = '';
           Object.entries(data).sort(([_, a], [__, b]) => a.name.localeCompare(b.name)).forEach(([_, entry]) => {
@@ -99,7 +94,7 @@
               tr.innerHTML = `
             <td>${entry.name}</td>
             <td class="${entry.status}">${entry.status}</td>
-            <td>${formatTime(entry.timestamp)}</td>
+            <td>${entry.timestamp}</td>
             <td>${entry.detail || ''}</td>
           `;
               tbody.appendChild(tr);
