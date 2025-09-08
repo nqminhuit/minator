@@ -95,3 +95,46 @@ func EventsHandler(m *monitor.Monitor) func(w http.ResponseWriter, r *http.Reque
 		}
 	}
 }
+
+func GetHardwareMetrics(m *monitor.Monitor) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := `
+		SELECT timestamp, cpu_percent, ram_percent, disk_percent
+		FROM hardware_metrics
+		WHERE timestamp >= NOW() - INTERVAL '24 hours'
+		ORDER BY timestamp`
+
+		rows, err := m.DB.Query(query)
+		if err != nil {
+			slog.Error("Failed to query hardware metrics", "error", err)
+			http.Error(w, "Failed to query hardware metrics", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var metrics []data.HardwareMetrics
+		for rows.Next() {
+			var m data.HardwareMetrics
+			if err := rows.Scan(&m.Timestamp, &m.CPUPercent, &m.RAMPercent, &m.DiskPercent); err != nil {
+				slog.Error("Failed to scan hardware metrics", "error", err)
+				http.Error(w, "Failed to scan hardware metrics", http.StatusInternalServerError)
+				return
+			}
+			metrics = append(metrics, m)
+		}
+
+		if err := rows.Err(); err != nil {
+			slog.Error("Error iterating over rows", "error", err)
+			http.Error(w, "Failed to scan hardware metrics", http.StatusInternalServerError)
+			return
+		}
+
+		// Set Content-Type to application/json
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(metrics); err != nil {
+			slog.Error("Failed to encode hardware metrics", "error", err)
+			http.Error(w, fmt.Sprintf("Failed to encode hardware metrics: %v", err), http.StatusInternalServerError)
+		}
+	}
+}
