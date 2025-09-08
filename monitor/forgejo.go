@@ -13,13 +13,13 @@ func forgejoStatus() data.ServiceStatus {
 		LastCheck: time.Now().UnixMilli(),
 	}
 	client := http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get("http://localhost:3000/user/login")
+	resp, err := client.Get("http://localhost:3000/api/healthz")
 	if err != nil {
 		serviceStatus.Status = "down"
 		serviceStatus.Message = "HTTP error: " + err.Error()
 		return serviceStatus
 	}
-	defer resp.Body.Close()
+	resp.Body.Close() // we don't need the body, only need the statusCode
 
 	if resp.StatusCode == http.StatusOK {
 		serviceStatus.Status = "healthy"
