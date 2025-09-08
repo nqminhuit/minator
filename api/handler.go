@@ -30,15 +30,15 @@ func ServiceStatusHandler(m *monitor.Monitor) func(w http.ResponseWriter, r *htt
 			slog.Error("Could not decode ServiceRequest", "err", err)
 			return
 		}
-		metric := make([]data.HealthStatus, 1)
-		metric = append(metric, payload.ToHealthStatus(time.Now()))
-		m.InsertMetrics(metric)
+		statuses := make([]data.ServiceStatus, 1)
+		statuses = append(statuses, payload.ToHealthStatus(time.Now()))
+		m.InsertServiceStatus(statuses)
 	}
 }
 
 func sendStatuses(m *monitor.Monitor, flusher http.Flusher, w http.ResponseWriter) {
 	// Read status from JSON file
-	content, err := m.Get(1)
+	content, err := m.GetLatestServiceStatus()
 	if err != nil {
 		slog.Error("Failed to get health status", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
@@ -48,8 +48,7 @@ func sendStatuses(m *monitor.Monitor, flusher http.Flusher, w http.ResponseWrite
 	if len(content) < 1 {
 		return
 	}
-	fmt.Printf("%v\n", content)
-	json, err := data.HealthStatusToJSON(content[0])
+	json, err := data.ServiceStatusToJSON(content)
 	if err != nil {
 		slog.Error("Failed to parse health status to json", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
