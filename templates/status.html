@@ -99,8 +99,8 @@
               tr.innerHTML = `
             <td>${entry.name}</td>
             <td class="${entry.status}">${entry.status}</td>
-            <td>${formatTime(entry.lastCheck)}</td>
-            <td>${entry.message || ''}</td>
+            <td>${formatTime(entry.timestamp)}</td>
+            <td>${entry.detail || ''}</td>
           `;
               tbody.appendChild(tr);
               document.getElementById("last-updated").textContent = "Last update: " + new Date().toLocaleString();

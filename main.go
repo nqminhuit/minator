@@ -18,13 +18,14 @@ func main() {
 	defer stop()
 
 	// Start periodic health checks
-	go monitor.StartMonitorLoop()
+	monitor := monitor.NewMonitor()
+	go monitor.Run(context.Background())
 
 	// Register HTTP routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", api.StatusPageHandler)
-	mux.HandleFunc("POST /api/service/status", api.ServiceStatusHandler)
-	mux.HandleFunc("/events", api.EventsHandler)
+	mux.HandleFunc("POST /api/service/status", api.ServiceStatusHandler(monitor))
+	mux.HandleFunc("/events", api.EventsHandler(monitor))
 
 	port := getPort()
 	slog.Info("Server is starting", "port", port)

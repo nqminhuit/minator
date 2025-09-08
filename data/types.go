@@ -1,15 +1,20 @@
 package data
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
-type ServiceStatus struct {
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	LastCheck int64  `json:"lastCheck"`
-	Message   string `json:"message,omitempty"`
+type HealthStatus struct {
+	Name        string    `json:"name"`
+	Status      string    `json:"status"`
+	Detail      string    `json:"detail"`
+	CPUPercent  float64   `json:"cpu_percent"`
+	RAMPercent  float64   `json:"ram_percent"`
+	DiskPercent float64   `json:"disk_percent"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
 type ServiceRequest struct {
@@ -18,15 +23,23 @@ type ServiceRequest struct {
 	Details map[string]any `json:"details"`
 }
 
-func (s *ServiceRequest) ToServiceStatus(lastCheck int64) ServiceStatus {
+func (s *ServiceRequest) ToHealthStatus(lastCheck time.Time) HealthStatus {
 	msg := make([]string, 0, len(s.Details))
 	for key, val := range s.Details {
 		msg = append(msg, fmt.Sprintf("%s: %s", key, val))
 	}
-	return ServiceStatus{
+	return HealthStatus{
 		Name:      s.Name,
 		Status:    s.Status,
-		LastCheck: lastCheck,
-		Message:   strings.Join(msg, ", "),
+		Timestamp: lastCheck,
+		Detail:    strings.Join(msg, ", "),
 	}
+}
+
+func HealthStatusToJSON(status HealthStatus) (string, error) {
+	data, err := json.Marshal(status)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal HealthStatus: %v", err)
+	}
+	return string(data), nil
 }
