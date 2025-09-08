@@ -3,13 +3,17 @@ package monitor
 import (
 	"log/slog"
 	"minator/data"
-	"minator/sys"
 	"time"
+
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
-func constructStatusMessage(diskPercent, ramPercent, cpuPercent float32) (status string, msg string) {
+func constructStatusMessage(diskUsage *disk.UsageStat, ram *mem.VirtualMemoryStat, cpus []float64) (status string, msg string) {
 	status = "healthy"
 	msg = ""
+	diskPercent := diskUsage.UsedPercent
 	if diskPercent > 90 {
 		status = "critical"
 		msg = "Running out of disk space"
@@ -20,6 +24,7 @@ func constructStatusMessage(diskPercent, ramPercent, cpuPercent float32) (status
 		msg = "Disk usage is high"
 		return
 	}
+	cpuPercent := cpus[0]
 	if cpuPercent > 90 {
 		status = "critical"
 		msg = "CPU usage is extremely high"
@@ -30,6 +35,7 @@ func constructStatusMessage(diskPercent, ramPercent, cpuPercent float32) (status
 		msg = "CPU usage is high"
 		return
 	}
+	ramPercent := ram.UsedPercent
 	if ramPercent > 90 {
 		status = "critical"
 		msg = "RAM usage is extremely high"
@@ -45,26 +51,33 @@ func constructStatusMessage(diskPercent, ramPercent, cpuPercent float32) (status
 
 func hardwareStatus() data.ServiceStatus {
 	var status, msg string
-	diskPercent, err := sys.DiskPercentUsage()
+	diskUsage, err := disk.Usage("/")
 	if err != nil {
 		status = "critical"
 		msg = "Could not collect disk percent"
 		slog.Error(msg, "Reason", err)
 	}
-	ramPercent, err := sys.RamPercentUsage()
+	ram, err := mem.VirtualMemory()
 	if err != nil {
 		status = "critical"
 		msg = "Could not collect RAM percent"
 		slog.Error(msg, "Reason", err)
 	}
-	cpuPercent, err := sys.CpuPercentUsage()
+	cpuPercent, err := cpu.Percent(0, false)
 	if err != nil {
 		status = "critical"
 		msg = "Could not collect CPU percent"
 		slog.Error(msg, "Reason", err)
 	}
+	// network, err := net.IOCounters(false)
+	// if err != nil {
+	// 	status = "critical"
+	// 	msg = "Could not collect Network stats"
+	// 	slog.Error(msg, "Reason", err)
+	// }
+	// slog.Info("network stats", "", network)
 	if status != "critical" {
-		status, msg = constructStatusMessage(diskPercent, ramPercent, cpuPercent)
+		status, msg = constructStatusMessage(diskUsage, ram, cpuPercent)
 	}
 	return data.ServiceStatus{
 		Name:      "Hardware",
