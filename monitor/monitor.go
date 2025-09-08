@@ -11,9 +11,9 @@ func StartMonitorLoop() {
 		data.UpsertServiceStatus(hardwareStatus())
 		data.UpsertServiceStatus(postgresStatus())
 		data.UpsertServiceStatus(forgejoStatus())
+		data.UpsertServiceStatus(pbStatus())
 		// TODO: we will monitor:
 		// nextcloud
-		// privatebin
 		// wireguard
 	}
 }
