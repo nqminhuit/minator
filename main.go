@@ -1,15 +1,22 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"minator/api"
 	"minator/monitor"
 )
 
 func main() {
+	// Structured shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// Start periodic health checks
 	go monitor.StartMonitorLoop()
 
@@ -24,6 +31,9 @@ func main() {
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		panic(err)
 	}
+
+	<-ctx.Done()
+	slog.Info("Shutdown signal received. Exiting...")
 }
 
 func getPort() string {
