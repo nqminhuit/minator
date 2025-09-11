@@ -175,7 +175,15 @@
             tooltip: { mode: "nearest" }
           },
           scales: {
-            y: { beginAtZero: true, max: 100 }
+            y: { beginAtZero: true, max: 100 },
+            x: {
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 20,
+                maxRotation: 90,
+                minRotation: 45
+              }
+            },
           }
         }
       });
