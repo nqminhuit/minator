@@ -114,7 +114,7 @@ func StreamHardwareMetrics(m *monitor.Monitor) http.HandlerFunc {
 		}
 
 		var lastTimestamp time.Time
-		lastTimestamp = getMetrics(m, w, flusher, 100, group, lastTimestamp)
+		lastTimestamp = getMetrics(m, w, flusher, group, lastTimestamp)
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
@@ -124,20 +124,38 @@ func StreamHardwareMetrics(m *monitor.Monitor) http.HandlerFunc {
 				slog.Info("Client disconnected from hardware metrics SSE")
 				return
 			case <-ticker.C:
-				lastTimestamp = getMetrics(m, w, flusher, 100, group, lastTimestamp)
+				lastTimestamp = getMetrics(m, w, flusher, group, lastTimestamp)
 			}
 		}
+	}
+}
+
+// limit based on group
+func calculateLimit(group string) int {
+	switch group {
+	case "minute":
+		return 200 // 100 minute samples
+	case "hour":
+		return 200 * 60 // 100 hour samples
+	case "day":
+		return 200 * 60 * 24 // 100 day samples
+	case "month":
+		return 200 * 60 * 24 * 30 // 300 day samples
+	default:
+		return 100 // 100 second samples
 	}
 }
 
 // getMetrics sends metrics (raw or grouped).
 // - limit is used for the initial batch when lastTimestamp.IsZero().
 // - group=="none" => raw rows; otherwise group is date_trunc unit.
-func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, limit int, group string, lastTimestamp time.Time) time.Time {
+func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, group string, lastTimestamp time.Time) time.Time {
 	var (
 		rows *sql.Rows
 		err  error
 	)
+
+	limit := calculateLimit(group)
 
 	switch group {
 	case "none":
