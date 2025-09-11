@@ -178,7 +178,7 @@
       });
 
       // Connect to SSE endpoint
-      const evtSource = new EventSource("/api/hardware/metrics/stream");
+      const evtSource = new EventSource("/api/hardware/metrics/stream?group=minute");
 
       evtSource.onmessage = function (event) {
         const data = JSON.parse(event.data);
