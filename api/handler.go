@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,7 +14,7 @@ import (
 )
 
 func StatusPageHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("templates/status.html"))
+	tmpl := template.Must(template.ParseFiles("templates/status.html")) // TODO: only need once
 	if err := tmpl.Execute(w, nil); err != nil {
 		http.Error(w, "Render error", 500)
 	}
@@ -31,15 +32,18 @@ func ServiceStatusHandler(m *monitor.Monitor) func(w http.ResponseWriter, r *htt
 			slog.Error("Could not decode ServiceRequest", "err", err)
 			return
 		}
-		statuses := make([]data.ServiceStatus, 1)
-		statuses = append(statuses, payload.ToHealthStatus(time.Now()))
-		m.InsertServiceStatus(statuses)
+		statuses := []data.ServiceStatus{payload.ToHealthStatus(time.Now())}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(monitor.ContextTimeoutSec)*time.Second)
+		defer cancel()
+		m.InsertServiceStatus(ctx, statuses)
 	}
 }
 
 func sendStatuses(m *monitor.Monitor, flusher http.Flusher, w http.ResponseWriter) {
-	// Read status from JSON file
-	content, err := m.GetLatestServiceStatus()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(monitor.ContextTimeoutSec)*time.Second)
+	defer cancel()
+	content, err := m.GetLatestServiceStatus(ctx)
 	if err != nil {
 		slog.Error("Failed to get health status", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
@@ -140,7 +144,7 @@ func calculateLimit(group string) int {
 	case "day":
 		return 200 * 60 * 24 // 100 day samples
 	case "month":
-		return 200 * 60 * 24 * 30 // 300 day samples
+		return 200 * 60 * 24 * 30 // 3000 day samples
 	default:
 		return 100 // 100 second samples
 	}
@@ -174,7 +178,8 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 			rows, err = mon.DB.Query(query, limit)
 			if err != nil {
 				slog.Error("Failed to query initial raw metrics", "error", err)
-				http.Error(w, "Failed to query hardware metrics", http.StatusInternalServerError)
+				fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
+				f.Flush()
 				return lastTimestamp
 			}
 		} else {
@@ -188,6 +193,8 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 			rows, err = mon.DB.Query(query, lastTimestamp)
 			if err != nil {
 				slog.Error("Failed to query new raw metrics", "error", err)
+				fmt.Fprintf(w, "event: error\ndata: %v\n\n", err)
+				f.Flush()
 				return lastTimestamp
 			}
 		}
@@ -204,21 +211,20 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 		}
 
 		if lastTimestamp.IsZero() {
-			// Initial grouped batch: latest N groups (DESC limit), then send chronologically (ASC)
 			query := fmt.Sprintf(`
-				SELECT ts, cpu_percent, ram_percent, disk_percent
+				SELECT date_trunc('%s', timestamp) AS ts,
+					AVG(cpu_percent)::float8 AS cpu_percent,
+					AVG(ram_percent)::float8 AS ram_percent,
+					AVG(disk_percent)::float8 AS disk_percent
 				FROM (
-					SELECT date_trunc('%s', timestamp) AS ts,
-					       AVG(cpu_percent)::float8 AS cpu_percent,
-					       AVG(ram_percent)::float8 AS ram_percent,
-					       AVG(disk_percent)::float8 AS disk_percent
+					SELECT timestamp, cpu_percent, ram_percent, disk_percent
 					FROM hardware_metrics
-					GROUP BY date_trunc('%s', timestamp)
-					ORDER BY date_trunc('%s', timestamp) DESC
+					ORDER BY timestamp DESC
 					LIMIT $1
-				) sub
+				) recent
+				GROUP BY date_trunc('%s', timestamp)
 				ORDER BY ts ASC;
-			`, trunc, trunc, trunc)
+			`, trunc, trunc)
 
 			rows, err = mon.DB.Query(query, limit)
 			if err != nil {
@@ -230,17 +236,18 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 			// Subsequent grouped query: aggregated groups with ts > lastTimestamp
 			// Do aggregation in a subquery, then filter by ts in outer query.
 			query := fmt.Sprintf(`
-				SELECT ts, cpu_percent, ram_percent, disk_percent FROM (
+				SELECT ts, cpu_percent, ram_percent, disk_percent
+				FROM (
 					SELECT date_trunc('%s', timestamp) AS ts,
-					       AVG(cpu_percent)::float8 AS cpu_percent,
-					       AVG(ram_percent)::float8 AS ram_percent,
-					       AVG(disk_percent)::float8 AS disk_percent
+						AVG(cpu_percent)::float8 AS cpu_percent,
+						AVG(ram_percent)::float8 AS ram_percent,
+						AVG(disk_percent)::float8 AS disk_percent
 					FROM hardware_metrics
+					WHERE timestamp > $1
 					GROUP BY date_trunc('%s', timestamp)
 				) sub
-				WHERE ts > $1
 				ORDER BY ts ASC;
-			`, trunc, trunc)
+				`, trunc, trunc)
 
 			rows, err = mon.DB.Query(query, lastTimestamp)
 			if err != nil {

@@ -229,7 +229,15 @@
       });
 
       // Start initially with the default group value
-      connectSSE(document.getElementById("groupSelect").value);
+      const defaultGroup = document.getElementById("groupSelect").value;
+      connectSSE(defaultGroup);
+
+      // Restart SSE connection every 10 minutes
+      setInterval(() => {
+        resetChartData();
+        const currentGroup = document.getElementById("groupSelect").value;
+        connectSSE(currentGroup);
+      }, 600000);
     </script>
   </body>
 </html>
