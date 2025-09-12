@@ -42,7 +42,7 @@ func main() {
 	mux.HandleFunc("GET /status", h.StatusPageHandler)
 	mux.HandleFunc("POST /api/service/status", h.ServiceStatusHandler())
 	mux.HandleFunc("GET /api/hardware/metrics/stream", h.StreamHardwareMetrics(ctx))
-	mux.HandleFunc("GET /events", h.EventsHandler(ctx))
+	mux.HandleFunc("GET /api/service/status/stream", h.StreamServiceStatuses(ctx))
 
 	port := getPort()
 	server := &http.Server{
