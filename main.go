@@ -10,6 +10,7 @@ import (
 
 	"minator/api"
 	"minator/monitor"
+	"minator/repository"
 )
 
 func main() {
@@ -21,12 +22,18 @@ func main() {
 	monitor := monitor.NewMonitor()
 	go monitor.Run(context.Background())
 
+	db := repository.InitDb()
+	ss := repository.NewServiceStatusRepo(db)
+	hm := repository.NewHardwareMetricsRepo(db)
+
+	h := api.NewHandler(ss, hm)
+
 	// Register HTTP routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /status", api.StatusPageHandler)
-	mux.HandleFunc("POST /api/service/status", api.ServiceStatusHandler(monitor))
-	mux.HandleFunc("/api/hardware/metrics/stream", api.StreamHardwareMetrics(monitor))
-	mux.HandleFunc("/events", api.EventsHandler(monitor))
+	mux.HandleFunc("GET /status", h.StatusPageHandler)
+	mux.HandleFunc("POST /api/service/status", h.ServiceStatusHandler())
+	mux.HandleFunc("/api/hardware/metrics/stream", h.StreamHardwareMetrics())
+	mux.HandleFunc("/events", h.EventsHandler())
 
 	port := getPort()
 	slog.Info("Server is starting", "port", port)

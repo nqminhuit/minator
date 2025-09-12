@@ -2,14 +2,13 @@ package monitor
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"minator/data"
+	"minator/repository"
 	"net"
 	"net/http"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -21,103 +20,26 @@ import (
 )
 
 const (
-	dbName             = "minator"
-	tblHardwareMetrics = "hardware_metrics"
-	tblServiceStatus   = "service_status"
-	ContextTimeoutSec  = 5
+	dbName            = "minator"
+	ContextTimeoutSec = 5
 )
 
 type Monitor struct {
-	HTTPClient *http.Client
-	DB         *sql.DB
+	HTTPClient     *http.Client
+	serviceStatus  repository.ServiceStatusRepo
+	hardwareMetric repository.HardwareMetricsRepo
 }
 
 func NewMonitor() *Monitor {
-	dsn := fmt.Sprintf(
-		"host=localhost port=5432 user=postgres password=%s dbname=%s sslmode=disable",
-		os.Getenv("POSTGRES_PASSWORD"), dbName)
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		slog.Error("Failed to connect to PostgreSQL", "error", err)
-		panic(err)
-	}
-	if err := db.Ping(); err != nil {
-		slog.Error("PostgreSQL ping failed", "error", err)
-		panic(err)
-	}
-	// Create minator user and assign password
-	minatorPassword := os.Getenv("MINATOR_DB_PASSWORD")
-	if minatorPassword == "" {
-		err := "MINATOR_DB_PASSWORD environment variable not set"
-		slog.Error(err)
-		panic(err)
-	}
-	// Update password if user exists
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(ContextTimeoutSec)*time.Second)
-	defer cancel()
-	_, err = db.ExecContext(ctx, fmt.Sprintf("ALTER ROLE minator WITH ENCRYPTED PASSWORD '%s'", minatorPassword))
-	if err != nil {
-		slog.Error("Failed to update minator user password", "error", err)
-		panic(err)
-	}
-
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
-			id SERIAL PRIMARY KEY,
-			timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			name VARCHAR(255) NOT NULL,
-			status VARCHAR(50) NOT NULL,
-			detail TEXT
-		);
-		CREATE INDEX IF NOT EXISTS idx_service_status_timestamp_desc ON %s (timestamp DESC);
-		CREATE INDEX IF NOT EXISTS idx_name ON %s (name);
-		COMMENT ON TABLE %s IS 'Stores services health status on homelab';
-		GRANT ALL ON %s TO minator;
-		GRANT USAGE, SELECT ON SEQUENCE service_status_id_seq TO minator;`,
-		tblServiceStatus, tblServiceStatus, tblServiceStatus, tblServiceStatus, tblServiceStatus)); err != nil {
-		slog.Error("Failed to create table", "tableName", tblServiceStatus, "error", err)
-	}
-
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
-			id SERIAL PRIMARY KEY,
-			timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			cpu_percent FLOAT NOT NULL,
-			ram_percent FLOAT NOT NULL,
-			disk_percent FLOAT NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_hardware_metrics_timestamp_desc ON %s (timestamp DESC);
-		COMMENT ON TABLE %s IS 'Stores hardware metrics on homelab';
-		GRANT ALL ON %s TO minator;
-		GRANT USAGE, SELECT ON SEQUENCE hardware_metrics_id_seq TO minator;`,
-		tblHardwareMetrics, tblHardwareMetrics, tblHardwareMetrics, tblHardwareMetrics)); err != nil {
-		slog.Error("Failed to create table", "tableName", tblHardwareMetrics, "error", err)
-	}
-	db.Close()
-
-	// Connect as minator user for normal operations
-	userDSN := fmt.Sprintf(
-		"host=localhost port=5432 user=minator password=%s dbname=%s sslmode=disable",
-		minatorPassword, dbName)
-	db, err = sql.Open("postgres", userDSN)
-	db.SetMaxOpenConns(5)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(time.Hour)
-
-	if err != nil {
-		slog.Error("Failed to connect to PostgreSQL as minator user", "error", err)
-	}
-	if err := db.Ping(); err != nil {
-		slog.Error("PostgreSQL ping failed as minator user", "error", err)
-	}
+	db := repository.InitDb()
 	return &Monitor{
-		HTTPClient: &http.Client{Timeout: 5 * time.Second},
-		DB:         db,
+		HTTPClient:     &http.Client{Timeout: 5 * time.Second},
+		serviceStatus:  repository.NewServiceStatusRepo(db),
+		hardwareMetric: repository.NewHardwareMetricsRepo(db),
 	}
 }
 
-func (m *Monitor) collectSystemMetrics() (float64, float64, float64) {
+func collectSystemMetrics() (float64, float64, float64) {
 	cpuPercent, err := cpu.Percent(0, false)
 	if err != nil {
 		slog.Error("Failed to collect CPU metric", "error", err)
@@ -183,8 +105,8 @@ func (m *Monitor) CheckWireGuardHealth() data.ServiceStatus {
 	return data.ServiceStatus{Status: "healthy", Detail: "WireGuard OK"}
 }
 
-func (m *Monitor) collectHardwareMetrics() data.HardwareMetrics {
-	cpuPct, ramPct, diskPct := m.collectSystemMetrics()
+func collectHardwareMetrics() data.HardwareMetrics {
+	cpuPct, ramPct, diskPct := collectSystemMetrics()
 	return data.HardwareMetrics{
 		CPUPercent:  cpuPct,
 		RAMPercent:  ramPct,
@@ -211,35 +133,6 @@ func (m *Monitor) collectServiceStatus() []data.ServiceStatus {
 	return statuses
 }
 
-func (m *Monitor) InsertServiceStatus(ctx context.Context, statuses []data.ServiceStatus) error {
-	tx, err := m.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	stmt, err := tx.Prepare(fmt.Sprintf(`
-		INSERT INTO %s (timestamp, name, status, detail)
-		VALUES ($1, $2, $3, $4)`,
-		tblServiceStatus))
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for _, s := range statuses {
-		if _, err := stmt.ExecContext(ctx, s.Timestamp, s.Name, s.Status, s.Detail); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-func (m *Monitor) InsertHardwareMetrics(ctx context.Context, s data.HardwareMetrics) error {
-	_, err := m.DB.ExecContext(ctx, `
-		INSERT INTO `+tblHardwareMetrics+` (timestamp, cpu_percent, ram_percent, disk_percent) VALUES ($1, $2, $3, $4)`,
-		s.Timestamp, s.CPUPercent, s.RAMPercent, s.DiskPercent)
-	return err
-}
-
 func (m *Monitor) Run(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -259,39 +152,11 @@ func (m *Monitor) collectMetrics() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(ContextTimeoutSec)*time.Second)
 	defer cancel()
 	statuses := m.collectServiceStatus()
-	if err := m.InsertServiceStatus(ctx, statuses); err != nil {
+	if err := m.serviceStatus.InsertServiceStatus(ctx, statuses); err != nil {
 		slog.Error("Failed to insert service statuses", "error", err)
 	}
-	metrics := m.collectHardwareMetrics()
-	if err := m.InsertHardwareMetrics(ctx, metrics); err != nil {
+	metrics := collectHardwareMetrics()
+	if err := m.hardwareMetric.InsertHardwareMetrics(ctx, metrics); err != nil {
 		slog.Error("Failed to insert metrics", "error", err)
 	}
-}
-
-func (m *Monitor) GetLatestServiceStatus(ctx context.Context) ([]data.ServiceStatus, error) {
-	rows, err := m.DB.QueryContext(ctx, `
-		WITH LatestStatus AS (
-			SELECT name, MAX(timestamp) AS max_timestamp
-			FROM `+tblServiceStatus+`
-			GROUP BY name
-		)
-		SELECT m.name, m.status, m.detail, m.timestamp
-		FROM `+tblServiceStatus+` m
-		INNER JOIN LatestStatus ls ON m.name = ls.name AND m.timestamp = ls.max_timestamp
-		ORDER BY m.name;`)
-	if err != nil {
-		slog.Error("Failed to query metrics", "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-	var statuses []data.ServiceStatus
-	for rows.Next() {
-		var s data.ServiceStatus
-		if err := rows.Scan(&s.Name, &s.Status, &s.Detail, &s.Timestamp); err != nil {
-			slog.Error("Failed to scan service status", "error", err)
-			return nil, err
-		}
-		statuses = append(statuses, s)
-	}
-	return statuses, nil
 }
