@@ -80,8 +80,8 @@ func (m *handler) sendStatuses(flusher http.Flusher, w http.ResponseWriter) {
 
 func (m *handler) StreamServiceStatuses(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("SSE client connected", "remote", r.RemoteAddr)
-		defer slog.Info("SSE client disconnected", "remote", r.RemoteAddr)
+		slog.Info("SSE client connected", "event", "ServiceStatus", "remote", r.RemoteAddr)
+		defer slog.Info("SSE client disconnected", "event", "ServiceStatus", "remote", r.RemoteAddr)
 
 		// SSE headers
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -123,6 +123,9 @@ func (h *handler) StreamHardwareMetrics(ctx context.Context) http.HandlerFunc {
 		if group == "" {
 			group = "none"
 		}
+		slog.Info("SSE client connected", "event", "HardwareMetrics", "groupBy", group, "remote", r.RemoteAddr)
+		defer slog.Info("SSE client disconnected", "event", "HardwareMetrics", "groupBy", group, "remote", r.RemoteAddr)
+
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")

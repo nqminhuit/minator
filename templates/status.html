@@ -72,7 +72,7 @@
         if (es) {
           es.close();
         }
-        es = new EventSource("/api/service/status/stream");
+        es = new EventSource("/api/stream/service-statuses");
         es.addEventListener("update", (event) => {
           try {
             const data = JSON.parse(event.data);
@@ -200,7 +200,7 @@
       function connectSSE(group) {
         if (evtSource) evtSource.close();
 
-        evtSource = new EventSource(`/api/hardware/metrics/stream?group=${group}`);
+        evtSource = new EventSource(`/api/stream/hardware-metrics?group=${group}`);
 
         evtSource.onmessage = function (event) {
           const data = JSON.parse(event.data);
