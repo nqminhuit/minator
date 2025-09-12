@@ -238,7 +238,8 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 			query := fmt.Sprintf(`
 				SELECT ts, cpu_percent, ram_percent, disk_percent
 				FROM (
-					SELECT date_trunc('%s', timestamp) AS ts,
+					SELECT date_trunc('%s', timestamp) AS ts_trunc,
+						MAX(timestamp) AS ts,
 						AVG(cpu_percent)::float8 AS cpu_percent,
 						AVG(ram_percent)::float8 AS ram_percent,
 						AVG(disk_percent)::float8 AS disk_percent
@@ -246,7 +247,8 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 					WHERE timestamp > $1
 					GROUP BY date_trunc('%s', timestamp)
 				) sub
-				ORDER BY ts ASC;
+				WHERE ts_trunc > $1
+				ORDER BY ts_trunc ASC;
 				`, trunc, trunc)
 
 			rows, err = mon.DB.Query(query, lastTimestamp)
@@ -264,7 +266,7 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 	}()
 
 	// Iterate and stream
-	var newest time.Time = lastTimestamp
+	newest := lastTimestamp
 	for rows.Next() {
 		var metric data.HardwareMetrics
 		if err := rows.Scan(&metric.Timestamp, &metric.CPUPercent, &metric.RAMPercent, &metric.DiskPercent); err != nil {
@@ -275,7 +277,6 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 		// Send SSE event
 		sendMetric(w, f, metric)
 
-		// Advance newest timestamp / group key
 		if metric.Timestamp.After(newest) {
 			newest = metric.Timestamp
 		}
