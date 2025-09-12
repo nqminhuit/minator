@@ -8,10 +8,10 @@ import (
 )
 
 type ServiceStatus struct {
-	Name        string    `json:"name"`
-	Status      string    `json:"status"`
-	Detail      string    `json:"detail"`
-	Timestamp   time.Time `json:"timestamp"`
+	Name      string    `json:"name"`
+	Status    string    `json:"status"`
+	Detail    string    `json:"detail"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type HardwareMetrics struct {
