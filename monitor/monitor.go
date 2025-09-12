@@ -31,7 +31,11 @@ type Monitor struct {
 }
 
 func NewMonitor() *Monitor {
-	db := repository.InitDb()
+	db, err := repository.InitDb()
+	if err != nil {
+		slog.Error("Failed to init database", "error", err)
+		return nil
+	}
 	return &Monitor{
 		HTTPClient:     &http.Client{Timeout: 5 * time.Second},
 		serviceStatus:  repository.NewServiceStatusRepo(db),

@@ -78,7 +78,7 @@ func (m *handler) sendStatuses(flusher http.Flusher, w http.ResponseWriter) {
 	flusher.Flush()
 }
 
-func (m *handler) EventsHandler() func(w http.ResponseWriter, r *http.Request) {
+func (m *handler) EventsHandler(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("SSE client connected", "remote", r.RemoteAddr)
 		defer slog.Info("SSE client disconnected", "remote", r.RemoteAddr)
@@ -105,6 +105,9 @@ func (m *handler) EventsHandler() func(w http.ResponseWriter, r *http.Request) {
 
 		for {
 			select {
+			case <-ctx.Done():
+				slog.Info("Server disconnected")
+				return
 			case <-r.Context().Done():
 				return // client disconnected
 			case <-ticker.C:
@@ -114,7 +117,7 @@ func (m *handler) EventsHandler() func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *handler) StreamHardwareMetrics() http.HandlerFunc {
+func (h *handler) StreamHardwareMetrics(ctx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		group := r.URL.Query().Get("group")
 		if group == "" {
@@ -137,6 +140,9 @@ func (h *handler) StreamHardwareMetrics() http.HandlerFunc {
 
 		for {
 			select {
+			case <-ctx.Done():
+				slog.Info("Server disconnected")
+				return
 			case <-r.Context().Done():
 				slog.Info("Client disconnected from hardware metrics SSE")
 				return
