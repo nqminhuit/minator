@@ -72,7 +72,7 @@
         if (es) {
           es.close();
         }
-        es = new EventSource("/events");
+        es = new EventSource("/api/service/status/stream");
         es.addEventListener("update", (event) => {
           try {
             const data = JSON.parse(event.data);

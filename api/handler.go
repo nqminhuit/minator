@@ -78,7 +78,7 @@ func (m *handler) sendStatuses(flusher http.Flusher, w http.ResponseWriter) {
 	flusher.Flush()
 }
 
-func (m *handler) EventsHandler(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
+func (m *handler) StreamServiceStatuses(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("SSE client connected", "remote", r.RemoteAddr)
 		defer slog.Info("SSE client disconnected", "remote", r.RemoteAddr)
