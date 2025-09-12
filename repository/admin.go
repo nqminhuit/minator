@@ -14,7 +14,7 @@ const (
 	ContextTimeoutSec = 5
 )
 
-func InitDb() *sql.DB {
+func InitDb() (*sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=localhost port=5432 user=postgres password=%s dbname=%s sslmode=disable",
 		os.Getenv("POSTGRES_PASSWORD"), dbName)
@@ -22,18 +22,16 @@ func InitDb() *sql.DB {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		slog.Error("Failed to connect to PostgreSQL", "error", err)
-		panic(err)
+		return nil, err
 	}
 	if err := db.Ping(); err != nil {
 		slog.Error("PostgreSQL ping failed", "error", err)
-		panic(err)
+		return nil, err
 	}
 	// Create minator user and assign password
 	minatorPassword := os.Getenv("MINATOR_DB_PASSWORD")
 	if minatorPassword == "" {
-		err := "MINATOR_DB_PASSWORD environment variable not set"
-		slog.Error(err)
-		panic(err)
+		return nil, fmt.Errorf("MINATOR_DB_PASSWORD environment variable not set")
 	}
 	// Update password if user exists
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(ContextTimeoutSec)*time.Second)
@@ -41,7 +39,7 @@ func InitDb() *sql.DB {
 	_, err = db.ExecContext(ctx, fmt.Sprintf("ALTER ROLE minator WITH ENCRYPTED PASSWORD '%s'", minatorPassword))
 	if err != nil {
 		slog.Error("Failed to update minator user password", "error", err)
-		panic(err)
+		return nil, err
 	}
 
 	NewServiceStatusRepo(db).CreateTableIfNotExists(ctx)
@@ -59,9 +57,11 @@ func InitDb() *sql.DB {
 
 	if err != nil {
 		slog.Error("Failed to connect to PostgreSQL as minator user", "error", err)
+		return nil, err
 	}
 	if err := db.Ping(); err != nil {
 		slog.Error("PostgreSQL ping failed as minator user", "error", err)
+		return nil, err
 	}
-	return db
+	return db, nil
 }
