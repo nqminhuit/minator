@@ -150,9 +150,6 @@ func calculateLimit(group string) int {
 	}
 }
 
-// getMetrics sends metrics (raw or grouped).
-// - limit is used for the initial batch when lastTimestamp.IsZero().
-// - group=="none" => raw rows; otherwise group is date_trunc unit.
 func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, group string, lastTimestamp time.Time) time.Time {
 	var (
 		rows *sql.Rows
@@ -198,18 +195,7 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 				return lastTimestamp
 			}
 		}
-	default:
-		// Grouped mode using date_trunc(group, timestamp)
-		// normalize group to one of allowed values to avoid injection risk
-		var trunc string
-		switch group {
-		case "minute", "hour", "day", "month":
-			trunc = group
-		default:
-			// fallback to minute if something unexpected came in
-			trunc = "minute"
-		}
-
+	case "minute", "hour", "day", "month":
 		if lastTimestamp.IsZero() {
 			query := fmt.Sprintf(`
 				SELECT date_trunc('%s', timestamp) AS ts,
@@ -222,9 +208,9 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 					ORDER BY timestamp DESC
 					LIMIT $1
 				) recent
-				GROUP BY date_trunc('%s', timestamp)
+				GROUP BY ts
 				ORDER BY ts ASC;
-			`, trunc, trunc)
+			`, group)
 
 			rows, err = mon.DB.Query(query, limit)
 			if err != nil {
@@ -245,11 +231,11 @@ func getMetrics(mon *monitor.Monitor, w http.ResponseWriter, f http.Flusher, gro
 						AVG(disk_percent)::float8 AS disk_percent
 					FROM hardware_metrics
 					WHERE timestamp > $1
-					GROUP BY date_trunc('%s', timestamp)
+					GROUP BY ts_trunc
 				) sub
 				WHERE ts_trunc > $1
 				ORDER BY ts_trunc ASC;
-				`, trunc, trunc)
+				`, group)
 
 			rows, err = mon.DB.Query(query, lastTimestamp)
 			if err != nil {
