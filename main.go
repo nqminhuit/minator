@@ -18,6 +18,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	fs := http.FileServer(http.Dir("templates/static"))
+
 	// Start periodic health checks
 	monitor := monitor.NewMonitor()
 	go monitor.Run(context.Background())
@@ -30,6 +32,7 @@ func main() {
 
 	// Register HTTP routes
 	mux := http.NewServeMux()
+	mux.Handle("/templates/static/", http.StripPrefix("/templates/static", fs))
 	mux.HandleFunc("GET /status", h.StatusPageHandler)
 	mux.HandleFunc("POST /api/service/status", h.ServiceStatusHandler())
 	mux.HandleFunc("/api/hardware/metrics/stream", h.StreamHardwareMetrics())
