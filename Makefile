@@ -13,7 +13,7 @@ compile: ## compile all go code
 	go build ./...
 
 run: ## start server in dev mode
-	POSTGRES_PASSWORD=securepassword MINATOR_DB_PASSWORD=securepassword go run main.go
+	POSTGRES_PASSWORD=securepassword MINATOR_DB_PASSWORD=securepassword go run minator.go
 
 fmt: ## Format Go source files
 	go fmt ./...
