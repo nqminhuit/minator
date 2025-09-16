@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"minator/data"
 	"minator/repository"
-	"net"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -100,15 +99,6 @@ func (m *Monitor) CheckPodmanHealth(container string) data.ServiceStatus {
 	return data.ServiceStatus{Status: "unhealthy", Detail: fmt.Sprintf("%s healthcheck failed", container)}
 }
 
-func (m *Monitor) CheckWireGuardHealth() data.ServiceStatus {
-	conn, err := net.DialTimeout("udp", "10.0.0.1:51820", 5*time.Second) // WireGuard peer
-	if err != nil {
-		return data.ServiceStatus{Status: "unhealthy", Detail: fmt.Sprintf("WireGuard connection failed: %v", err)}
-	}
-	conn.Close()
-	return data.ServiceStatus{Status: "healthy", Detail: "WireGuard OK"}
-}
-
 func collectHardwareMetrics() data.HardwareMetrics {
 	cpuPct, ramPct, diskPct := collectSystemMetrics()
 	return data.HardwareMetrics{
@@ -125,7 +115,6 @@ func (m *Monitor) collectServiceStatus() []data.ServiceStatus {
 		"forgejo":    func() data.ServiceStatus { return m.checkHttpHealth("http://localhost:3000/api/healthz") },
 		"privatebin": func() data.ServiceStatus { return m.checkHttpHealth("http://localhost:8080/") },
 		"postgresql": func() data.ServiceStatus { return m.CheckPodmanHealth("hl-postgres") },
-		"wireguard":  m.CheckWireGuardHealth,
 		// "nextcloud":   func() HealthStatus { return m.CheckHTTPHealth("http://localhost/nextcloud/status.php") },
 	}
 	for name, check := range checks {
